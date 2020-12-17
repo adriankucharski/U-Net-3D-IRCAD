@@ -1,0 +1,7 @@
+*.png
+*.txt
+*.pickle
+*.hdf5
+*.nii
+data
+__pycache__
