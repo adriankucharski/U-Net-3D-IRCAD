@@ -18,7 +18,7 @@ import numpy as np
 
 from functions import *
 from History import *
-from model import SegNet3D, UNet3D, UNet3D_2, UNet2D
+from model import SegNet3D, UNet3D, UNet2D
 from model import dice_coef_loss, tversky_loss, iou_loss
 from PredictImage import *
 
@@ -121,33 +121,28 @@ def training_Unet2D():
 
 if __name__ == '__main__':
 
-    predictImgs(imgsPath = 'data/ircad_iso_111_test/*', modelPath='model/20201114_2235_model_iso_2.hdf5', imName='patientIso.nii', allAxes=False, slicePerSlab=16)
-    calc_results()
-    exit(1)
 
-    training_Unet2D()
-    
     weights_path = 'model/20201119_1248_model_bc_split.hdf5'
-    model_save = 'model/20201119_1248_model_bc_split_data.hdf5'
-    history_save = 'history/20201119_1248_model_bc_split_data.pickle'
+    model_save = 'trained_model.hdf5'
+    history_save = 'history.pickle'
     epochs = 150
     slabSize = 16
     files = 15
-    slabPerFile = 64
-    axes = 1
-    spe = files * slabPerFile * axes
+    slabPerFile = 128
     predictOnly = False
 
     gen = SimpleImageGenerator(
-        picklePath='data/image_data_224x224.pickle', 
+        picklePath='image_data_224x224.pickle', 
         slicePerSlab=slabSize, 
         slabPerFile=slabPerFile
     )
 
-    X = np.empty((128 * 15, 16, 224, 224, 1), dtype=np.float16)
-    Y = np.empty((128 * 15, 16, 224, 224, 1), dtype=np.float16)
+    SLABS = slabPerFile * files
 
-    for idx in range(128 * 15):
+    X = np.empty((SLABS, 16, 224, 224, 1), dtype=np.float16)
+    Y = np.empty((SLABS, 16, 224, 224, 1), dtype=np.float16)
+
+    for idx in range(SLABS):
         x, y = next(gen)
         X[idx,:,:,:,:] = x
         Y[idx,:,:,:,:] = y
@@ -158,18 +153,15 @@ if __name__ == '__main__':
     print('Y = ' + str(int(getsizeof(Y) / 2**20)) + ' MB')
     
     if predictOnly == False:
-        model = UNet3D_2((slabSize, 224, 224, 1))
-        #model.load_weights(weights_path)
-
+        model = UNet3D((slabSize, 224, 224, 1))
         checkpointer = ModelCheckpoint(model_save, 'val_loss', 2, True, mode='auto')
-        #history = model.fit(gen, steps_per_epoch=spe, verbose=1, epochs=epochs, batch_size=1, callbacks=[checkpointer])
         history = model.fit(X, Y, verbose=1, epochs=epochs, batch_size=1, validation_split=0.2, callbacks=[checkpointer], use_multiprocessing=True, workers=2)
 
-        hist = History(history)
-        hist.save_history(history_save)
-        hist.save_plot_history('history/plots/')
+        #hist = History(history)
+        #hist.save_history(history_save)
+        #hist.save_plot_history('history/plots/')
 
-    predictImgs(imgsPath = 'data/ircad_iso_111_test/*', modelPath='20201114_2235_model_iso_2.hdf5', imName='patientIso.nii', allAxes=False, slicePerSlab=slabSize)
+    predictImgs(imgsPath = 'data/ircad_iso_111_test/*', modelPath='trained_model.hdf5', imName='patientIso.nii', allAxes=False, slicePerSlab=slabSize)
     calc_results()
 
 """

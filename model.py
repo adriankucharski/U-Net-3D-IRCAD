@@ -94,62 +94,8 @@ def UNet3DBlock(inputs, layers, filters, kernel_size=(3,3,3), activation = 'relu
         conv = Conv3D(filters, kernel_size, activation=activation, padding=padding, kernel_initializer=kernel_initializer)(conv)
     conv = Dropout(dropout)(conv)
     return conv
-def UNet3DBlock(inputs, layers, filters, kernel_size=(3,3,3), activation = 'relu', padding = 'same', kernel_initializer = 'he_normal', dropout = 0.25):
-    conv = inputs
-    for _ in range(layers):
-        conv = Conv3D(filters, kernel_size, activation=activation, padding=padding, kernel_initializer=kernel_initializer)(conv)
-    conv = Dropout(dropout)(conv)
-    return conv
 
 def UNet3D(shape, weights = None):
-    inputs = Input(shape)
-    
-
-    conv1_1 = UNet3DBlock(inputs, layers=2, filters=4)
-    pool1_1 = MaxPooling3D((2,2,2))(conv1_1)
-
-    conv1_2 = UNet3DBlock(pool1_1, layers=2, filters=8)
-    pool1_2 = MaxPooling3D((2,2,2))(conv1_2)
-
-    conv1_3 = UNet3DBlock(pool1_2, layers=2, filters=16)
-    pool1_3 = MaxPooling3D((2,2,2))(conv1_3)
-    
-    conv1_4 = UNet3DBlock(pool1_3, layers=2, filters=32)
-    pool1_4 = MaxPooling3D((2,2,2))(conv1_4)
-
-    conv1_5 = UNet3DBlock(pool1_4, layers=2, filters=64)
-
-    upsam1_1 = UpSampling3D((2,2,2))(conv1_5)
-    conv2_1 = UNet3DBlock(upsam1_1, layers=2, filters=64)
-    #upsampling nie powinien być odwrotnie?
-    #może usunąć conv2_1
-
-    add1 = concatenate([conv1_4, conv2_1])
-
-    conv2_2 = UNet3DBlock(add1, layers=2, filters=32)
-    upsam1_2 = UpSampling3D((2,2,2))(conv2_2)
-    add2 = concatenate([conv1_3, upsam1_2])
-
-    conv2_3 = UNet3DBlock(add2, layers=2, filters=16)
-    upsam1_3 = UpSampling3D((2,2,2))(conv2_3)
-    add3 = concatenate([conv1_2, upsam1_3])
-
-    conv2_4 = UNet3DBlock(add3, layers=2, filters=8)
-    upsam1_4 = UpSampling3D((2,2,2))(conv2_4)
-    add4 = concatenate([conv1_1, upsam1_4])
-
-    conv2_5 = UNet3DBlock(add4, layers=2, filters=4)
-    
-
-    outputs = Conv3D(1, 1, activation='sigmoid')(conv2_5)
-    
-    model = Model(inputs=inputs, outputs=outputs)
-    model.compile(optimizer='adam', loss = 'binary_crossentropy', metrics = [Precision(), Recall(), AUC(), Accuracy()])
-    model.summary()
-
-    return model
-
-def UNet3D_2(shape, weights = None):
     inputs = Input(shape)
 
     #encoder
