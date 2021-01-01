@@ -4,5 +4,6 @@
 *.hdf5
 *.nii
 data
+model
 __pycache__
 
