@@ -41,6 +41,30 @@ def generate_slab_dataset(dataset, slab_per_file: int = 128, slab_shape=(16, 224
                 i += 1
     return X, Y
 
+#[128, 224, 224, 1]
+#[1, Z, 224, 224, 1]
+
+def generate_slice_dataset(dataset, slice_per_file:int = 128, slice_shape=(224, 224, 1)):
+    num_of_files = len(dataset)
+    slices = num_of_files * slice_per_file
+    X = np.empty((slices, *slice_shape), dtype=np.float16)
+    Y = np.empty((slices, *slice_shape), dtype=np.float16)
+
+    slice_index = 0
+    for image_id in range(num_of_files):
+        i = 0
+        IDs = []
+        x, y = dataset[image_id]
+        while i < slice_per_file:
+            slice_id = int(np.random.randint(0, x.shape[1]))
+            if slice_id not in IDs:
+                index = np.index_exp[0, slice_id, :, :]
+                X[slice_index, :, :, :] = x[index]
+                Y[slice_index, :, :, :] = y[index]
+                IDs.append(slice_id)
+                slice_index += 1
+                i += 1
+    return X, Y
 
 
 
@@ -95,7 +119,7 @@ def prepare_dataset(from_path='data/ircad_iso_111/*', im_name='patientIso.nii', 
             Y = resize_image(Y, static_size)
 
         X = preproces_im(X)
-        Y = preproces_im(Y)
+        Y = preproces_gt(Y, list([1]))
         im_data.append((X, Y))
 
     with open('data/log.txt', 'a+') as log:
@@ -130,4 +154,7 @@ def load_dataset(path: str = 'data/im_data.pickle') -> tuple:
     return im_data
 
 if __name__ == '__main__':
-    prepare_dataset(static_size=(None, 224, 224))
+    #prepare_dataset(gt_name = 'vesselsIso.nii', static_size=(None, 224, 224))
+    dataset = load_dataset('data/im_data.pickle')
+    X, Y = generate_slice_dataset(dataset)
+    print(X.shape, Y.shape)
