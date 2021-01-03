@@ -1,5 +1,5 @@
 from dataset import *
-from model import UNet3D, UNet2D
+from model import UNet3D, UNet3DBlock, UNet2D, UNet2DBlock
 from History import History
 from tensorflow.keras.callbacks import ModelCheckpoint
 from skimage.transform import resize
@@ -12,6 +12,8 @@ import random
 import re
 from glob import glob
 from pathlib import Path
+import inspect
+
 
 import numpy as np
 from skimage import io
@@ -57,6 +59,9 @@ def train_slab_unet3d(EPOCHES=150,
         log.write('Slab shape       : ' + str(SLAB_SHAPE) + '\n')
         log.write('Number of slabs  : ' + str(slabs_number) + '\n')
         log.write('Dataset          : ' + dataset_path + '\n')
+        log.write('Code             : [\n')
+        log.write(inspect.getsource(UNet3DBlock) + '\n')
+        log.write(inspect.getsource(UNet3D) + '\n]\n')
 
     checkpointer = ModelCheckpoint(
             str(model_save), 'val_loss', 2, True, mode='auto')
@@ -102,6 +107,10 @@ def train_slice_unet2d(EPOCHES=150,
         log.write('Slice shape      : ' + str(SLICE_SHAPE) + '\n')
         log.write('Number of slices : ' + str(slices_number) + '\n')
         log.write('Dataset          : ' + dataset_path + '\n')
+        log.write('Code             : [\n')
+        log.write(inspect.getsource(UNet2DBlock) + '\n')
+        log.write(inspect.getsource(UNet2D) + '\n]\n')
+
 
     checkpointer = ModelCheckpoint(
             str(model_save), 'val_loss', 2, True, mode='auto')

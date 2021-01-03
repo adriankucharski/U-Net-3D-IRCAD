@@ -30,14 +30,14 @@ def train_2D():
     BATCH_SIZE = 16
     DATASET_PATH = 'data/im_data.pickle'
 
-    # model_path = train_slice_unet2d(EPOCHES,
-    #                                VALIDATION_SPLIT,
-    #                                SLICE_PER_FILE,
-    #                                SLICE_SHAPE,
-    #                                DATASET_PATH,
-    #                                BATCH_SIZE)
+    model_path = train_slice_unet2d(EPOCHES,
+                                   VALIDATION_SPLIT,
+                                   SLICE_PER_FILE,
+                                   SLICE_SHAPE,
+                                   DATASET_PATH,
+                                   BATCH_SIZE)
 
-    predict_images_slice('data/ircad_iso_111_test/*', str('model/model_2D_02.01.2021_00-07-55.hdf5'), static_size=STATIC_SIZE)
+    predict_images_slice('data/ircad_iso_111_test/*', str(model_path), static_size=STATIC_SIZE)
 
 
 if __name__ == '__main__':
