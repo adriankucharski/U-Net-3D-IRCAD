@@ -81,13 +81,15 @@ def train_slice_unet2d(EPOCHES=150,
                       SLICE_PER_FILE=128,
                       SLICE_SHAPE=(224, 224, 1),
                       dataset_path = 'data/im_data.pickle',
-                      BATCH_SIZE = 32):
+                      BATCH_SIZE = 32,
+                      network = UNet2D):
     dataset = load_dataset(dataset_path)
     num_of_images = len(dataset)
     slices_number = num_of_images * SLICE_PER_FILE
 
     X, Y = generate_slice_dataset(dataset, SLICE_PER_FILE, SLICE_SHAPE)
-    model = UNet2D(SLICE_SHAPE)
+    print("Dataset max values: ", "Xmax=", X.max(), "Ymax=", Y.max())
+    model = network(SLICE_SHAPE)
 
     model_save = None
     history_save = None

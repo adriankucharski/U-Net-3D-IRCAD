@@ -10,6 +10,7 @@ import random
 import re
 from glob import glob
 from pathlib import Path
+from model import *
 
 import numpy as np
 from skimage import io
@@ -122,7 +123,7 @@ def predict_image_slice_and_save(im_path, im_save, model, static_size=None):
 def predict_images_slice(imgs_path, model_path, save_path='predicted', im_name='patientIso.nii', static_size=(None, 224, 224)):
     sp = Path(save_path)
     model = tf.keras.models.load_model(
-        str(Path(model_path)), custom_objects={'None': None})
+        str(Path(model_path)), custom_objects={'loss': dice_coef_loss})
 
     def sorting(s): return int(re.findall(r'\d+', s)[-1])
     for dir_path in sorted(glob(str(Path(imgs_path))), key=sorting):
@@ -133,3 +134,10 @@ def predict_images_slice(imgs_path, model_path, save_path='predicted', im_name='
         save_name = sp / (suffix + '_patient.nii')
         predict_image_slice_and_save(
             ip, str(save_name), model, static_size)
+
+
+if __name__ == '__main__':
+    MODEL = "model/model_2D_17.01.2021_23-03-53.hdf5"
+    STATIC_SIZE = (None, 224, 224)
+    predict_images_slice('data/ircad_iso_111_test/*', MODEL, static_size=STATIC_SIZE)
+

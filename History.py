@@ -70,8 +70,9 @@ class History():
 
 if __name__ == '__main__':
     hist = History()
-    hist.load_history('history/20201120_0011_model_unet_2d_1.pickle')
-    hist.show_all_history(['loss', 'val_loss'], (0.0, 0.02))
-    hist.save_all('history/plots/')
+    hist.load_history('history\history18.01.2021_00-35-12.pickle')
+    hist.show_all_history(['loss', 'val_loss'], (0.0, 0.4))
+    hist.show_all_history(['accuracy', 'val_accuracy'], (0.0, 0.4))
+    #hist.save_all('history/plots/')
     #hist.show_all_history(['val_accuracy', 'accuracy'])
     #hist.save_plot_history('history/plots/')

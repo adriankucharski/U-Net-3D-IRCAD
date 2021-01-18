@@ -87,9 +87,9 @@ def preproces_im(im):
 
 def preproces_gt(gt, label=(0, 1)):
     depth, height, width = gt.shape
-    gt = np.reshape(gt, (depth, height, width))
+    gt = np.reshape(gt, (depth, height, width)) 
     new_gt = np.zeros((depth, height, width, len(label)), dtype='float16')
-
+    print("PG", np.max(gt))
     for i in range(0, len(label)):
         new_gt[0:depth, 0:height, 0:width, i] = (gt == label[i])
 
@@ -113,13 +113,15 @@ def prepare_dataset(from_path='data/ircad_iso_111/*', im_name='patientIso.nii', 
         ip = Path(dir_path) / im_name
         gp = Path(dir_path) / gt_name
         X, Y = load_pair_images(ip, gp)
+        
 
         if static_size is not None:
             X = resize_image(X, static_size)
             Y = resize_image(Y, static_size)
 
         X = preproces_im(X)
-        Y = preproces_gt(Y, list([1]))
+        Y = preproces_gt(Y, list([Y.max()]))
+        print("Max: ", np.max(Y))
         im_data.append((X, Y))
 
     with open('data/log.txt', 'a+') as log:
@@ -154,7 +156,8 @@ def load_dataset(path: str = 'data/im_data.pickle') -> tuple:
     return im_data
 
 if __name__ == '__main__':
-    #prepare_dataset(gt_name = 'vesselsIso.nii', static_size=(None, 224, 224))
-    dataset = load_dataset('data/im_data.pickle')
+    prepare_dataset(from_path = 'data/ircad_iso_111/*', gt_name = 'liverMaskIso.nii', save_path='data/im_liver_data.pickle', static_size=(None, 224, 224))
+    dataset = load_dataset('data/im_liver_data.pickle')
     X, Y = generate_slice_dataset(dataset)
+    print(np.max(Y), np.max(X))
     print(X.shape, Y.shape)
