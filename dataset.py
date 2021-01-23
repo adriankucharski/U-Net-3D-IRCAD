@@ -1,4 +1,11 @@
 import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+from tensorflow.python.keras.preprocessing.image import ImageDataGenerator
+from skimage.transform import resize
+import SimpleITK as sitk
+from datetime import datetime
+
 import pickle
 import random
 import re
@@ -8,16 +15,42 @@ from pathlib import Path
 import numpy as np
 from skimage import io
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+# ************************************************************
+#                       IMAGE IO
+# ************************************************************
+def io_load_image(path: str):
+    image = sitk.ReadImage(str(Path(path)))
+    array = sitk.GetArrayFromImage(image)
+    return array, image
+    
+def io_save_image(path: str, array, image_header_data):
+    image = sitk.GetImageFromArray(array)
+    image.CopyInformation(image_header_data)
+    writer = sitk.ImageFileWriter()
+    writer.SetFileName(str(Path(path)))
+    writer.Execute(image)
+    
 
-from datetime import datetime
+def io_load_pair_images(im_path, gt_path) -> list:
+    X = sitk.GetArrayFromImage(sitk.ReadImage(str(Path(im_path))))
+    Y = sitk.GetArrayFromImage(sitk.ReadImage(str(Path(gt_path))))
+    return [X, Y]
 
-import SimpleITK as sitk
-from skimage.transform import resize
+def save_dataset(im_data, save_path: str = 'data/im_data.pickle'):
+    with open(str(Path(save_path)), 'wb') as file:
+        pickle.dump(im_data, file)
+
+def load_dataset(path: str = 'data/im_data.pickle') -> tuple:
+    im_data = None
+    with open(str(Path(path)), 'rb') as file:
+        im_data = pickle.load(file)
+    return im_data
+
 
 # ************************************************************
 #                       DATASET
 # ************************************************************
+
 
 def generate_slab_dataset(dataset, slab_per_file: int = 128, slab_shape=(16, 224, 224, 1)):
     num_of_files = len(dataset)
@@ -44,7 +77,8 @@ def generate_slab_dataset(dataset, slab_per_file: int = 128, slab_shape=(16, 224
 #[128, 224, 224, 1]
 #[1, Z, 224, 224, 1]
 
-def generate_slice_dataset(dataset, slice_per_file:int = 128, slice_shape=(224, 224, 1)):
+
+def generate_slice_dataset(dataset, slice_per_file: int = 128, slice_shape=(224, 224, 1)):
     num_of_files = len(dataset)
     slices = num_of_files * slice_per_file
     X = np.empty((slices, *slice_shape), dtype=np.float16)
@@ -55,7 +89,8 @@ def generate_slice_dataset(dataset, slice_per_file:int = 128, slice_shape=(224, 
         i = 0
         IDs = []
         x, y = dataset[image_id]
-        while i < slice_per_file:
+        print(x.shape)
+        while i < slice_per_file and i < len(x):
             slice_id = int(np.random.randint(0, x.shape[1]))
             if slice_id not in IDs:
                 index = np.index_exp[0, slice_id, :, :]
@@ -66,7 +101,22 @@ def generate_slice_dataset(dataset, slice_per_file:int = 128, slice_shape=(224, 
                 i += 1
     return X, Y
 
+def get_slice_dataset(dataset, slice_shape=(224,224,1)):
+    num_of_files = len(dataset)
+    slices = np.sum([pack[0].shape[1] for pack in dataset])
+    print(slices)
+    X = np.empty((slices, *slice_shape), dtype=np.float16)
+    Y = np.empty((slices, *slice_shape), dtype=np.float16)
 
+    slice_index = 0
+    for pair in dataset:
+        x, y = pair
+        for i in range(x.shape[1]):
+            index = np.index_exp[0, i, :, :]
+            X[slice_index, :, :, :] = x[index]
+            Y[slice_index, :, :, :] = y[index]
+            slice_index += 1
+    return X, Y
 
 def resize_image(data, static_size: tuple):
     new_size = list(data.shape)
@@ -79,30 +129,19 @@ def resize_image(data, static_size: tuple):
 
 def preproces_im(im):
     im = (im - np.mean(im)) / np.std(im)
-    im = np.reshape(im, (*im.shape, 1))
-    new_im = np.zeros((1, *im.shape), dtype=np.float16)
-    new_im[:, :, :, :] = im
-    return new_im
+    im = np.tanh(im)
+    return np.reshape(im, (-1, *im.shape, 1))
 
 
 def preproces_gt(gt, label=(0, 1)):
     depth, height, width = gt.shape
-    gt = np.reshape(gt, (depth, height, width)) 
+    gt = np.reshape(gt, (depth, height, width))
     new_gt = np.zeros((depth, height, width, len(label)), dtype='float16')
     print("PG", np.max(gt))
     for i in range(0, len(label)):
         new_gt[0:depth, 0:height, 0:width, i] = (gt == label[i])
 
-    reshaped = np.zeros((1, *new_gt.shape), dtype=np.float16)
-    reshaped[:, :, :, :] = new_gt
-    return reshaped
-
-
-def load_pair_images(im_path, gt_path) -> list:
-    X = sitk.GetArrayFromImage(sitk.ReadImage(str(Path(im_path))))
-    Y = sitk.GetArrayFromImage(sitk.ReadImage(str(Path(gt_path))))
-    return [X, Y]
-
+    return np.reshape(new_gt, (-1, *new_gt.shape))
 
 def prepare_dataset(from_path='data/ircad_iso_111/*', im_name='patientIso.nii', gt_name='liverMaskIso.nii', save_path='data/im_data.pickle', static_size=None):
     im_data = []
@@ -112,8 +151,7 @@ def prepare_dataset(from_path='data/ircad_iso_111/*', im_name='patientIso.nii', 
 
         ip = Path(dir_path) / im_name
         gp = Path(dir_path) / gt_name
-        X, Y = load_pair_images(ip, gp)
-        
+        X, Y = io_load_pair_images(ip, gp)
 
         if static_size is not None:
             X = resize_image(X, static_size)
@@ -144,20 +182,45 @@ def prepare_dataset(from_path='data/ircad_iso_111/*', im_name='patientIso.nii', 
     save_dataset(im_data, save_path)
 
 
-def save_dataset(im_data, save_path: str = 'data/im_data.pickle'):
-    with open(str(Path(save_path)), 'wb') as file:
-        pickle.dump(im_data, file)
+def get_slice_generator(path: str = 'data/im_data.pickle', slice_per_file: int = 128, slice_shape=(224, 224, 1), val_split:float=0.2, batch_size:int = 32) -> tuple:
+    # Load dataset from .pickle file
+    dataset = load_dataset(path)
 
+    # Extract slice from 3D img
+    X, Y = generate_slice_dataset(dataset, slice_per_file, slice_shape)
 
-def load_dataset(path: str = 'data/im_data.pickle') -> tuple:
-    im_data = None
-    with open(str(Path(path)), 'rb') as file:
-        im_data = pickle.load(file)
-    return im_data
+    # Shuffle arrays
+    p = np.random.permutation(len(X))
+    X, Y = X[p], Y[p]
+
+    # Extract validation data
+    size_valid = int(len(X) * val_split)
+    X_valid, Y_valid = X[0:size_valid], Y[0:size_valid]
+    X_train, Y_train = X[size_valid:len(X)], Y[size_valid:len(Y)]
+
+    # Create generator
+    datagen = ImageDataGenerator(
+        width_shift_range=0.05,
+        height_shift_range=0.05,
+        shear_range=0.05,
+        zoom_range=0.05,
+        dtype=np.float16
+    )
+    datagen.fit(X)
+
+    data_generator = datagen.flow(X_train, Y_train, batch_size)
+    data_validation = (X_valid, Y_valid)
+    x_train_size = len(X_train)
+    return data_generator, data_validation, x_train_size
+
 
 if __name__ == '__main__':
-    prepare_dataset(from_path = 'data/ircad_iso_111/*', gt_name = 'liverMaskIso.nii', save_path='data/im_liver_data.pickle', static_size=(None, 224, 224))
-    dataset = load_dataset('data/im_liver_data.pickle')
-    X, Y = generate_slice_dataset(dataset)
-    print(np.max(Y), np.max(X))
-    print(X.shape, Y.shape)
+    shape = (224, 224)
+    name = 'data/im_liver_16train_4test_notanh.pickle'
+    from_path = 'data/ircad_train/*'
+    gt_name = 'liverMaskIso.nii'
+    prepare_dataset(from_path=from_path, gt_name=gt_name,
+                    save_path=name, static_size=(None, *shape))
+    dataset = load_dataset(name)
+    X, Y = generate_slice_dataset(dataset, slice_shape=(*shape, 1))
+    print(np.max(Y), np.min(X), np.max(X))

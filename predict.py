@@ -1,10 +1,11 @@
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 from dataset import resize_image, preproces_gt, preproces_im
 from skimage.transform import resize
 import tensorflow as tf
 import SimpleITK as sitk
 from datetime import datetime
-import os
 import pickle
 import random
 import re
@@ -15,7 +16,6 @@ from model import *
 import numpy as np
 from skimage import io
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
 #####
@@ -70,7 +70,8 @@ def predict_image_slab_and_save(im_path, im_save, model, slice_per_slab: int = 1
 def predict_images_slab(imgs_path, model_path, save_path='predicted', im_name='patientIso.nii', slice_per_slab: int = 16, stride: int = 1, static_size=(None, 224, 224)):
     sp = Path(save_path)
     model = tf.keras.models.load_model(
-        str(Path(model_path)), custom_objects={'None': None})
+        str(Path(model_path)), custom_objects={'dice_coef': dice_coef})
+    model.summary()
 
     def sorting(s): return int(re.findall(r'\d+', s)[-1])
     for dir_path in sorted(glob(str(Path(imgs_path))), key=sorting):
@@ -123,7 +124,7 @@ def predict_image_slice_and_save(im_path, im_save, model, static_size=None):
 def predict_images_slice(imgs_path, model_path, save_path='predicted', im_name='patientIso.nii', static_size=(None, 224, 224)):
     sp = Path(save_path)
     model = tf.keras.models.load_model(
-        str(Path(model_path)), custom_objects={'loss': dice_coef_loss})
+        str(Path(model_path)), custom_objects={'dice_coef': dice_coef, 'dice_coef_loss': dice_coef_loss, 'loss': my_loss()})
 
     def sorting(s): return int(re.findall(r'\d+', s)[-1])
     for dir_path in sorted(glob(str(Path(imgs_path))), key=sorting):
@@ -137,7 +138,18 @@ def predict_images_slice(imgs_path, model_path, save_path='predicted', im_name='
 
 
 if __name__ == '__main__':
-    MODEL = "model/model_2D_17.01.2021_23-03-53.hdf5"
+    MODEL = 'model\model_2D_23.01.2021_15-58-30.hdf5'
     STATIC_SIZE = (None, 224, 224)
-    predict_images_slice('data/ircad_iso_111_test/*', MODEL, static_size=STATIC_SIZE)
+    predict_images_slice('data/ircad_test/*', MODEL, static_size=STATIC_SIZE)
 
+"""
+predicted\3Dircadb1.15_patient.nii 0.9403078036832394
+predicted\3Dircadb1.1_patient.nii 0.9440268308848263
+predicted\3Dircadb1.20_patient.nii 0.9505963172274714
+predicted\3Dircadb1.5_patient.nii 0.9664644101758728
+
+predicted\3Dircadb1.15_patient.nii 0.9328859469940245
+predicted\3Dircadb1.1_patient.nii 0.9566474943916878
+predicted\3Dircadb1.20_patient.nii 0.9435723972586476
+predicted\3Dircadb1.5_patient.nii 0.9652332296180478
+"""
