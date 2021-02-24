@@ -53,7 +53,7 @@ def dice_coef(y_true, y_pred, smooth=1e-5):
     ref: https://arxiv.org/pdf/1606.04797v1.pdf
     """
     intersection =  2 * K.sum(K.abs(y_true * y_pred), axis=-1) + smooth/2.0
-    sums = (K.sum(y_true, -1) + K.sum(y_pred, -1) + smooth)
+    sums = (K.sum(K.square(y_true), -1) + K.sum(K.square(y_pred), -1) + smooth)
     return intersection / sums
 
 
@@ -148,6 +148,38 @@ def UNet3D(shape, weights=None):
     model.summary()
 
     return model
+
+def UNet3DPatch(shape, weights=None):
+    conv_encoder = []
+    encoder_filters = np.array([2, 4, 8, 16])
+    decoder_filters = np.array([32, 16, 8, 4])
+    bridge_filters = 64
+
+    inputs = Input(shape)
+    # encoder
+    x = inputs
+    for filters in encoder_filters:
+        conv = UNet3DBlock(x, layers=2, filters=filters)
+        x = MaxPooling3D(pool_size=(2, 2, 2))(conv)
+        conv_encoder.append(conv)
+
+    x = UNet3DBlock(x, layers=2, filters=bridge_filters)
+
+    # decoder
+    for filters in decoder_filters:
+        x = UNet3DBlock(x, layers=2, filters=filters)
+        x = UpSampling3D(size=(2, 2, 2))(x)
+        x = concatenate([conv_encoder.pop(), x])
+
+    x = UNet3DBlock(x, layers=2, filters=8)
+    outputs = Conv3D(1, 1, activation='sigmoid')(x)
+    model = Model(inputs=inputs, outputs=outputs)
+    model.compile(optimizer=Adam(learning_rate=1e-4),
+                  loss='binary_crossentropy', metrics=[AUC(), dice_coef])
+    model.summary()
+
+    return model
+
 
 #################################################
 
@@ -246,18 +278,19 @@ def experimental_network_3D(shape, weights=None):
     conv_encoder = []
     encoder_filters = np.array([8, 16, 32, 64, 64])
     decoder_filters = np.array([64, 64, 32, 16, 8])
-    bridge_filters = 128
     strides = (1, 1, 1)
 
     inputs = Input(shape)
-    # encoder
     x = inputs
+    
+    # encoder
     for filters in encoder_filters:
         conv = UNet3DBlock(x, layers=2, filters=filters, strides=strides)
         x = MaxPooling3D(pool_size=(1, 2, 2))(conv)
         conv_encoder.append(conv)
 
-    x = UNet3DBlock(x, layers=2, filters=bridge_filters, dropout=0.5, strides=strides)
+    # bridge
+    x = UNet3DBlock(x, layers=2, filters=64, dropout=0.5, strides=strides)
 
     # decoder
     for filters in decoder_filters:
@@ -265,7 +298,12 @@ def experimental_network_3D(shape, weights=None):
         x = UpSampling3D(size=(1, 2, 2))(x)
         x = concatenate([conv_encoder.pop(), x])
 
-    x = UNet3DBlock(x, layers=1, filters=8, strides=strides)
+    #x = UNet3DBlock(x, layers=1, filters=8, strides=strides)
+    # postcoder
+    for operation, filters in zip([MaxPooling3D, MaxPooling3D, UpSampling3D, UpSampling3D], [8, 16, 16, 8]):
+        x = UNet3DBlock(x, layers=1, filters=filters, dropout=0.25, strides=strides)
+        x = operation((2, 2, 2))(x)
+
     outputs = Conv3D(1, 1, activation='sigmoid')(x)
     model = Model(inputs=inputs, outputs=outputs)
     model.compile(optimizer=Adam(learning_rate=1e-3),
@@ -273,6 +311,8 @@ def experimental_network_3D(shape, weights=None):
     model.summary()
 
     return model
+
+
 
 if __name__ == '__main__':
     pass

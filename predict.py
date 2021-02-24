@@ -15,7 +15,7 @@ from model import *
 
 import numpy as np
 from skimage import io
-
+from dataset import *
 
 
 #####
@@ -83,6 +83,10 @@ def predict_images_slab(imgs_path, model_path, save_path='predicted', im_name='p
         predict_image_slab_and_save(
             ip, str(save_name), model, slice_per_slab, stride, static_size)
 
+# ************************************************************
+#                       PREDICTION 3D PATCH
+# ************************************************************
+
 
 # ************************************************************
 #                       PREDICTION 2D
@@ -96,15 +100,23 @@ def predict_image_slice(im, model):
     return pred
 
 
-def predict_image_slice_and_save(im_path, im_save, model, static_size=None):
+def predict_image_slice_and_save(im_path, im_save, model, static_size=None, mask=None):
     # load image and get array
     im = sitk.ReadImage(str(Path(im_path)))
     array = sitk.GetArrayFromImage(im)
     original_size = array.shape
 
+    #multiply with mask
+    
+
     # resize and preproces image
     if static_size is not None:
         array = resize_image(array, static_size)
+        if mask is not None:
+            mask = resize_image(mask, static_size)
+            array[mask == 0] = np.mean(array[np.where(mask == 0)])
+    
+    #preprocess image
     array = preproces_im(array)
 
     new_im = predict_image_slice(array, model)
@@ -136,11 +148,41 @@ def predict_images_slice(imgs_path, model_path, save_path='predicted', im_name='
         predict_image_slice_and_save(
             ip, str(save_name), model, static_size)
 
+def predict_images_masked_slice(
+    imgs_path, 
+    model_path, 
+    save_path='predicted', 
+    im_name='patientIso.nii', 
+    mask_name='dilatedVesselsMaskIso.nii', 
+    static_size=(None, 224, 224)
+):
+    sp = Path(save_path)
+    model = tf.keras.models.load_model(
+        str(Path(model_path)), custom_objects={'dice_coef': dice_coef, 'dice_coef_loss': dice_coef_loss, 'loss': my_loss()})
+
+    def sorting(s): return int(re.findall(r'\d+', s)[-1])
+    for dir_path in sorted(glob(str(Path(imgs_path))), key=sorting):
+        print(dir_path)
+        ip = Path(dir_path) / im_name
+        mp = Path(dir_path) / mask_name
+
+        mask, _ = io_load_image(str(mp))
+        suffix = Path(dir_path).parts[-1]
+
+        save_name = sp / (suffix + '_patient.nii')
+        predict_image_slice_and_save(
+            ip, str(save_name), model, static_size, mask)
+
+def predict_masked():
+    MODEL = 'model\model_2D_24.01.2021_15-33-14.hdf5'
+    predict_images_masked_slice('data/ircad_test/*', MODEL)
+    exit()
 
 if __name__ == '__main__':
-    MODEL = 'model\model_2D_23.01.2021_15-58-30.hdf5'
+    MODEL = 'model\model_3D_18.02.2021_12-56-34.hdf5'
+    IM_NAME = 'patientIso.nii'
     STATIC_SIZE = (None, 224, 224)
-    predict_images_slice('data/ircad_test/*', MODEL, static_size=STATIC_SIZE)
+    predict_images_slab('data/ircad_snorkel/antiga098-002/test/*', MODEL, static_size=STATIC_SIZE, im_name=IM_NAME)
 
 """
 predicted\3Dircadb1.15_patient.nii 0.9403078036832394

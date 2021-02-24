@@ -91,10 +91,12 @@ def labeling_applier(lfs:list, dataset:list, filenames:list, original_images:lis
         labeled_images.append(Image(T, array.shape))
         index += T.shape[0]
     
+    #[[1 0 0 1], [0 1 0 1]]
+
 
     if log: print('Training')
     LM = LabelModel(cardinality=2, verbose=True,device='cuda')    
-    LM.fit(lab_arr, seed = 42, log_freq=1)
+    LM.fit(lab_arr, seed = 3333, log_freq=1, class_balance=[0.97, 0.03])
 
     if log: print('Predict')
 
@@ -108,7 +110,10 @@ def labeling_applier(lfs:list, dataset:list, filenames:list, original_images:lis
 
         im_flat = np.zeros(array.shape, dtype=np.uint8).flatten()
         
+        #[[1 0 0 1], [0 1 0 1]]
         p = LM.predict(array.labels)
+
+        #[[1] [0] [1]...]
         p = np.reshape(p, array.shape)
         p = getLargestCC(p)
         p[p > 0] = 255
@@ -142,7 +147,7 @@ def load_dataset(path:str = 'F:/Deep Learning/Data/vesselness_ircad_ICPR/train/*
 if __name__ == '__main__':
     # calc(PATH_NEW = 'F:/Deep Learning/U-Net-3D-IRCAD/data/ircad_snorkel/antiga_3/*')
     # exit(1)
-    dataset, filenames, original_images = load_dataset(im_name='rorpo.nii')
+    dataset, filenames, original_images = load_dataset('F:/Deep Learning/Data/vesselness_ircad_ICPR/all/*', im_name='rorpo.nii')
     lfs = [li_thresholding, otsu_thresholding, yen_thresholding]
     labeling_applier(lfs, dataset, filenames, original_images, log=True)
     #applier = LFApplier(lfs=lfs)

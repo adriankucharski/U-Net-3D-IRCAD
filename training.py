@@ -53,7 +53,7 @@ def train_slab_unet3d(EPOCHES=150,
         history_save = Path('history') / ('history' + now + '.pickle')
 
         log.write('\n################### 3D #################\n')
-        log.write('Model path       : ' + str(model_save) + ':\n')
+        log.write('Model path       : ' + str(model_save) + '\n')
         log.write('History          : ' + str(history_save) + '\n')
         log.write('Epoches          : ' + str(EPOCHES) + '\n')
         log.write('Validation split : ' + str(VALIDATION_SPLIT) + '\n')
@@ -64,7 +64,7 @@ def train_slab_unet3d(EPOCHES=150,
         log.write('Dataset          : ' + dataset_path + '\n')
         log.write('Code             : [\n')
         log.write(inspect.getsource(UNet3DBlock) + '\n')
-        log.write(inspect.getsource(UNet3D) + '\n]\n')
+        log.write(inspect.getsource(NETWORK) + '\n]\n')
 
     checkpointer = ModelCheckpoint(
         str(model_save), 'val_loss', 2, True, mode='auto')
@@ -97,8 +97,8 @@ def train_slice_unet2d(EPOCHES=150,
     else:    
         X, Y = generate_slice_dataset(dataset, SLICE_PER_FILE, SLICE_SHAPE)
     
-    assert(X == None and Y == None)
-    
+    assert(X is not None and Y is not None)
+
     print("Dataset max values: ",
           "[X_min=", X.min(), 'X_max=', X.max(), ']', "Ymax=", Y.max())
     model = network(SLICE_SHAPE)
@@ -112,7 +112,7 @@ def train_slice_unet2d(EPOCHES=150,
         history_save = Path('history') / ('history' + now + '.pickle')
 
         log.write('\n################## 2D ##################\n')
-        log.write('Model path       : ' + str(model_save) + ':\n')
+        log.write('Model path       : ' + str(model_save) + '\n')
         log.write('History          : ' + str(history_save) + '\n')
         log.write('Epoches          : ' + str(EPOCHES) + '\n')
         log.write('Validation split : ' + str(VALIDATION_SPLIT) + '\n')

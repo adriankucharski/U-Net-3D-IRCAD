@@ -5,15 +5,16 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
 def train_3D():
-    EPOCHES = 75
+    EPOCHES = 25
     VALIDATION_SPLIT = 0.2
     SLAB_PER_FILE = 145
-    SLAB_SHAPE = (5, 224, 224, 1)
+    SLAB_SHAPE = (16, 224, 224, 1)
     STATIC_SIZE = (None, 224, 224)
-    BATCH_SIZE = 4
-    DATASET_PATH = 'data/im_liver_16train_4test_notanh.pickle'
-    NETWORK = experimental_network_3D
+    BATCH_SIZE = 1
+    DATASET_PATH = 'data/im_antiga098_002_masked_16train_4test.pickle'
+    NETWORK = UNet3D
     SLICE_PER_SLAB = SLAB_SHAPE[0]
+    DATASET_TEST = 'data/ircad_snorkel/antiga098-002/test/*'
 
     model_path = train_slab_unet3d(EPOCHES,
                                    VALIDATION_SPLIT,
@@ -23,19 +24,19 @@ def train_3D():
                                    BATCH_SIZE,
                                    NETWORK)
 
-    predict_images_slab('data/ircad_iso_111_test/*', str(model_path), static_size=STATIC_SIZE, slice_per_slab=SLICE_PER_SLAB)
+    predict_images_slab(DATASET_TEST, str(model_path), static_size=STATIC_SIZE, slice_per_slab=SLICE_PER_SLAB)
 
 
 def train_2D():
     EPOCHES = 300
     VALIDATION_SPLIT = 0.2
-    SLICE_PER_FILE = 145
+    SLICE_PER_FILE = -1
     SLICE_SHAPE = (224, 224, 1)
     STATIC_SIZE = (None, 224, 224)
     BATCH_SIZE = 16
-    DATASET_PATH = 'data/im_liver_16train_4test_notanh.pickle'
+    DATASET_PATH = 'data/im_antiga098_002_masked_16train_4test.pickle'
     NETWORK = UNet2D
-    DATASET_TEST = 'data/ircad_test/*'
+    DATASET_TEST = 'data/ircad_snorkel/antiga098-002/test/*'
 
     model_path = train_slice_unet2d(EPOCHES,
                                    VALIDATION_SPLIT,
@@ -45,7 +46,7 @@ def train_2D():
                                    BATCH_SIZE,
                                    NETWORK)
 
-    predict_images_slice(DATASET_TEST, str(model_path), static_size=STATIC_SIZE)
+    predict_images_slice(DATASET_TEST, str(model_path), im_name='patientIso.nii', static_size=STATIC_SIZE)
 
 def train_generator_2D():
     EPOCHES = 200
@@ -71,4 +72,4 @@ def train_generator_2D():
 
 
 if __name__ == '__main__':
-    train_2D()
+    train_3D()
