@@ -168,9 +168,9 @@ def get_patch_dataset(dataset, patch_size = 32, patch_per_file = 200):
         x, y = pair
         mid = patch_size//2
         _, _x, _y, _z, _ = x.shape
-        corr_x = np.random.permutation(np.arange(mid, _x - mid))[0:patch_per_file]
-        corr_y = np.random.permutation(np.arange(mid, _y - mid))[0:patch_per_file]
-        corr_z = np.random.permutation(np.arange(mid, _z - mid))[0:patch_per_file]
+        corr_x = np.random.randint(mid, _x - mid - 1, patch_per_file)
+        corr_y = np.random.randint(mid, _y - mid - 1, patch_per_file)
+        corr_z = np.random.randint(mid, _z - mid - 1, patch_per_file)
 
         for i in np.arange(0, patch_per_file):
             #example index with patch_size = 32: [0, 0:32, 45:77, 100:132]

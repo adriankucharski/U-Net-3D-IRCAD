@@ -3,7 +3,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
 from dataset import *
-from model import UNet3D, UNet3DBlock, UNet2D, UNet2DBlock
+from model import UNet3D, UNet3DBlock, UNet2D, UNet2DBlock, UNet3DPatch
 from History import History
 from tensorflow.keras.callbacks import ModelCheckpoint
 from skimage.transform import resize
@@ -61,6 +61,47 @@ def train_slab_unet3d(EPOCHES=150,
         log.write('Slabs per image  : ' + str(SLAB_PER_FILE) + '\n')
         log.write('Slab shape       : ' + str(SLAB_SHAPE) + '\n')
         log.write('Number of slabs  : ' + str(slabs_number) + '\n')
+        log.write('Dataset          : ' + dataset_path + '\n')
+        log.write('Code             : [\n')
+        log.write(inspect.getsource(UNet3DBlock) + '\n')
+        log.write(inspect.getsource(NETWORK) + '\n]\n')
+
+    checkpointer = ModelCheckpoint(
+        str(model_save), 'val_loss', 2, True, mode='auto')
+    history = model.fit(X, Y, verbose=1, epochs=EPOCHES, batch_size=BATCH_SIZE,
+                        validation_split=VALIDATION_SPLIT, callbacks=[checkpointer])
+    hist = History(history)
+    hist.save_history(history_save)
+
+    return model_save
+
+def train_patch_unet3d(EPOCHES=150,
+                      VALIDATION_SPLIT=0.2,
+                      PATCH_PER_FILE = 100,
+                      PATCH_SIZE = 32,
+                      dataset_path='data/im_data.pickle',
+                      BATCH_SIZE=1,
+                      NETWORK=UNet3DPatch):
+    dataset = load_dataset(dataset_path)
+    X, Y = get_patch_dataset(dataset, PATCH_SIZE, PATCH_PER_FILE)
+    model = NETWORK((PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, 1))
+
+    model_save = None
+    history_save = None
+    with open('model/log.txt', 'a+') as log:
+        now = datetime.now().strftime("%d.%m.%Y_%H-%M-%S")
+
+        model_save = Path('model') / ('model_3D_' + now + '.hdf5')
+        history_save = Path('history') / ('history' + now + '.pickle')
+
+        log.write('\n################### 3D #################\n')
+        log.write('Model path       : ' + str(model_save) + '\n')
+        log.write('History          : ' + str(history_save) + '\n')
+        log.write('Epoches          : ' + str(EPOCHES) + '\n')
+        log.write('Validation split : ' + str(VALIDATION_SPLIT) + '\n')
+        log.write('Batch size       : ' + str(VALIDATION_SPLIT) + '\n')
+        log.write('Patch per image  : ' + str(PATCH_PER_FILE) + '\n')
+        log.write('Patch size       : ' + str(PATCH_SIZE) + '\n')
         log.write('Dataset          : ' + dataset_path + '\n')
         log.write('Code             : [\n')
         log.write(inspect.getsource(UNet3DBlock) + '\n')

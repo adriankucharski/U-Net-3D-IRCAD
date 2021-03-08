@@ -151,8 +151,8 @@ def UNet3D(shape, weights=None):
 
 def UNet3DPatch(shape, weights=None):
     conv_encoder = []
-    encoder_filters = np.array([2, 4, 8, 16])
-    decoder_filters = np.array([32, 16, 8, 4])
+    encoder_filters = np.array([4, 8, 16, 32])
+    decoder_filters = np.array([64, 64, 16, 8])
     bridge_filters = 64
 
     inputs = Input(shape)

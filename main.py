@@ -27,6 +27,26 @@ def train_3D():
     predict_images_slab(DATASET_TEST, str(model_path), static_size=STATIC_SIZE, slice_per_slab=SLICE_PER_SLAB)
 
 
+def train_patch_3D():
+    EPOCHES = 50
+    VALIDATION_SPLIT = 0.2
+    PATCH_PER_FILE = 20000
+    PATCH_SIZE = 16
+    STATIC_SIZE = (None, 224, 224)
+    BATCH_SIZE = 64
+    DATASET_PATH = 'data/im_antiga098_002_masked_16train_4test.pickle'
+    NETWORK = UNet3DPatch
+    
+    model_path = train_patch_unet3d(
+        EPOCHES,
+        VALIDATION_SPLIT,
+        PATCH_PER_FILE,
+        PATCH_SIZE,
+        DATASET_PATH,
+        BATCH_SIZE,
+        NETWORK
+    )
+
 def train_2D():
     EPOCHES = 300
     VALIDATION_SPLIT = 0.2
@@ -72,4 +92,4 @@ def train_generator_2D():
 
 
 if __name__ == '__main__':
-    train_3D()
+    train_patch_3D()

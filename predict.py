@@ -86,6 +86,52 @@ def predict_images_slab(imgs_path, model_path, save_path='predicted', im_name='p
 # ************************************************************
 #                       PREDICTION 3D PATCH
 # ************************************************************
+def image_to_patch_generator(im, patch_size = 16, stride = 4):
+    W, H, D = im.shape
+    im = np.reshape(im, (*im.shape, 1))
+    
+    W = (W - patch_size)//stride + 1
+    H = (H - patch_size)//stride + 1
+    D = (D - patch_size)//stride + 1
+    for w in range(W):
+        for h in range(H):
+            for d in range(D):
+                left_w, right_w = w*stride, w*stride+patch_size
+                left_h, right_h = h*stride, h*stride+patch_size
+                left_d, right_d = d*stride, d*stride+patch_size
+
+                index = np.index_exp[left_w:right_w, left_h:right_h, left_d:right_d]
+                yield im[index], index
+    yield None, None
+
+def predict_image_patch3D_generator(im, model, batch_size = 64, patch_size = 32, stride = 4):
+    x, y, z = im.shape
+    batch = np.zeros((batch_size, patch_size, patch_size, patch_size, 1), dtype=np.float16)
+    indexes = list(range(batch_size))
+
+    prob = np.zeros((x, y, z, 1), np.float16)
+    sums = np.ones((x, y, z, 1), np.float16)
+
+    gen = image_to_patch_generator(im, patch_size, stride)
+    while True:
+        end = False
+        batch_max = 0
+        for i in range(batch_size):
+            patch, index = next(gen)
+            if patch is None:
+                end = True
+                break
+            batch[i], indexes[i] = patch, index
+            batch_max += 1
+        
+        pred = model.predict(batch[0:batch_max], batch_size = 16, verbose=0)
+        for i in range(batch_max):
+            prob[indexes[i]] += pred[i]
+            sums[indexes[i]] += 1
+            
+        if end:
+            break
+    return np.array(prob / sums, dtype=np.float32)
 
 
 # ************************************************************
@@ -179,6 +225,18 @@ def predict_masked():
     exit()
 
 if __name__ == '__main__':
+    arr, im = io_load_image("data/ircad_test/3Dircadb1.15/patientIso.nii")
+    arr = (arr - np.mean(arr)) / np.std(arr)
+
+    model = tf.keras.models.load_model(
+        str(Path('model/model_3D_03.03.2021_23-11-25.hdf5')), custom_objects={'dice_coef': dice_coef})
+
+    a = predict_image_patch3D_generator(arr, model, patch_size = 16, stride=4)
+
+    print(arr.shape, a.shape)
+    io_save_image('data/test.nii', a, im)
+
+    exit()
     MODEL = 'model\model_3D_18.02.2021_12-56-34.hdf5'
     IM_NAME = 'patientIso.nii'
     STATIC_SIZE = (None, 224, 224)
