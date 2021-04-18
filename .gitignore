@@ -6,4 +6,6 @@
 data
 model
 __pycache__
+temp
+predicted
 

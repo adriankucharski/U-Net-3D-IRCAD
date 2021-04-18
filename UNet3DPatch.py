@@ -26,6 +26,8 @@ from datetime import datetime
 import re
 import random
 import pickle
+from History import History
+from threading import Thread 
 
 
 ###################################################
@@ -37,9 +39,15 @@ def dice_coef(y_true, y_pred, smooth=1e-5):
          =  2*sum(|A*B|)/(sum(A^2)+sum(B^2))
     ref: https://arxiv.org/pdf/1606.04797v1.pdf
     """
-    intersection = 2 * K.sum(K.abs(y_true * y_pred), axis=-1) + smooth/2.0
+    intersection = 2 * K.sum(K.abs(y_true * y_pred), axis=-1) + smooth
     sums = (K.sum(K.square(y_true), -1) + K.sum(K.square(y_pred), -1) + smooth)
     return intersection / sums
+
+def dice_loss(y_true, y_pred):
+    smooth=1e-5
+    intersection = 2 * K.sum(K.abs(y_true * y_pred), axis=-1) + smooth
+    sums = (K.sum(K.square(y_true), -1) + K.sum(K.square(y_pred), -1) + smooth)
+    return 1.0 - (intersection / sums)
 
 
 ###################################################
@@ -56,9 +64,9 @@ def UNet3DBlock(inputs, layers, filters, kernel_size=(3, 3, 3), activation='relu
 
 def UNet3DPatch(shape, weights=None):
     conv_encoder = []
-    encoder_filters = np.array([8, 16, 16])
+    encoder_filters = np.array([8, 16, 32, 32])
     mid_filters = 32
-    decoder_filters = np.array([16, 16, 8])
+    decoder_filters = np.array([64, 32, 16, 8])
     bottom_filters = 4
 
     inputs = Input(shape)
@@ -79,6 +87,7 @@ def UNet3DPatch(shape, weights=None):
 
     x = UNet3DBlock(x, layers=2, filters=bottom_filters)
     outputs = Conv3D(1, 1, activation='sigmoid')(x)
+
     model = Model(inputs=inputs, outputs=outputs)
     model.compile(optimizer=Adam(learning_rate=1e-4),
                   loss='binary_crossentropy', metrics=[AUC(), dice_coef])
@@ -89,8 +98,9 @@ def UNet3DPatch(shape, weights=None):
 ###################################################
 #                   Preproces
 ###################################################
-def preproces_im(im):
-    im = (im - np.mean(im)) / np.std(im)
+def preproces_im(im) -> np.ndarray:
+    im = im / np.max(im)
+    #im = (im - np.mean(im)) / np.std(im)
     return np.array(np.reshape(im, (-1, *im.shape, 1)), dtype='float16')
 
 def preproces_gt(gt):
@@ -129,8 +139,8 @@ def load_dataset(
         x, _ = io_load_image(str(im_path))
         y, _ = io_load_image(str(gt_path))
 
-        x = preproces_im(x)
-        y = preproces_gt(y)
+        x = preproces_im(x).astype('float16')
+        y = preproces_gt(y).astype('float16')
         im_data.append((x, y))
 
     return im_data
@@ -165,6 +175,27 @@ def create_patch_training_data(dataset, patch_size=16, patch_per_file=10000):
             patch_index += 1
     return X, Y
 
+def patch_generator_data(dataset, patch_size = 16, batch_size = 32):
+    num_of_files = len(dataset)
+    patch_shape = (patch_size, patch_size, patch_size, 1)
+
+    while True:
+        idx = random.randint(0, len(dataset) - 1)
+
+        mid = patch_size//2
+        x, y = dataset[idx]
+        _, _x, _y, _z, _ = x.shape
+        corr_x = np.random.randint(mid, _x - mid - 1, batch_size)
+        corr_y = np.random.randint(mid, _y - mid - 1, batch_size)
+        corr_z = np.random.randint(mid, _z - mid - 1, batch_size)
+
+        for i in np.arange(0, batch_size):
+            index = np.index_exp[0, corr_x[i] - mid: corr_x[i] + mid,
+                                 corr_y[i] - mid: corr_y[i] + mid,  corr_z[i] - mid: corr_z[i] + mid]
+
+            yield np.expand_dims(x[index], axis=0), np.expand_dims(y[index], axis=0)
+
+
 # ************************************************************
 #                         predict
 # ************************************************************
@@ -187,7 +218,6 @@ def image_to_patch_generator(im, patch_size=16, stride=4):
                 yield im[index], index
     yield None, None
 
-
 def predict_image(im, model, batch_size=64, patch_size=16, stride=4):
     x, y, z = im.shape
     batch = np.zeros((batch_size, patch_size, patch_size,
@@ -208,6 +238,9 @@ def predict_image(im, model, batch_size=64, patch_size=16, stride=4):
                 break
             batch[i], indexes[i] = patch, index
             batch_max += 1
+        
+        if batch_max == 0:
+            break
 
         pred = model.predict(batch[0:batch_max], batch_size=16, verbose=0)
         for i in range(batch_max):
@@ -218,48 +251,84 @@ def predict_image(im, model, batch_size=64, patch_size=16, stride=4):
             break
     return np.array(prob / sums, dtype=np.float32)
 
+def gen_crossvalidation_array(num_of_el: int):
+    a = list(range(num_of_el))
+    cross = []
+    for i in range(len(a)):
+        test = i
+        train = list(a)
+        train.remove(test)
+        cross.append([train, test])
+    return cross
 
 # ************************************************************
 #                         main
 # ************************************************************
 if __name__ == '__main__':
-    epochs = 15
+    epochs = 60
     batch_size = 128
-    validation_split = 0.2
-    model_path_save = 'model_3d_patch.hdf5'
+    steps_per_epoch = 1250
+    model_path_save = 'model/cross/model_3d_patch.hdf5'
+    history_path_save = 'history/cross/history_'
 
-    patch_size = 16
-    patch_per_im = 10000
-    train_path = 'data/ircad_train/*'
-    test_path = 'data/ircad_test/*'
+    patch_size = 32
+    dataset_path = 'data/ircad_full/*'
+
 
     ############################################
     # Load dataset
-    dataset = load_dataset(train_path)
-    x, y = create_patch_training_data(dataset, patch_size, patch_per_im)
+    dataset = load_dataset(dataset_path)
+    cross = gen_crossvalidation_array(len(dataset))
 
-    ############################################
-    # Training
-    checkpointer = ModelCheckpoint(
-        model_path_save, 'val_loss', 2, True, mode='auto')
-    model = UNet3DPatch((patch_size, patch_size, patch_size, 1))
-    model.fit(x, y, batch_size=batch_size, epochs=epochs,
-              validation_split=validation_split, callbacks=[checkpointer])
+    for train, test in cross:
+        if test < 10:
+            continue
+        ############################################
+        # Get the train fold
+        print(train, test)
+        model_path_save_2 = './' + model_path_save + str(test)
+        cross_train = [dataset[i] for i in train]
 
-    ############################################
-    # Predict
-    trained_model = tf.keras.models.load_model(
-        str(Path(model_path_save)), custom_objects={'dice_coef': dice_coef})
+        ############################################
+        # Training
+        checkpointer = ModelCheckpoint(
+            model_path_save_2, 'loss', 2, True, mode='auto')
+        model = UNet3DPatch((patch_size, patch_size, patch_size, 1))
 
-    def sorting(s): return int(re.findall(r'\d+', s)[-1])
-    for im_dir in sorted(glob(str(Path(test_path))), key=sorting):
-        im_path = Path(im_dir) / 'patientIso.nii'
-        im, im_data = io_load_image(str(im_path))
+        gen = patch_generator_data(cross_train, patch_size, batch_size)
+        hist = model.fit(gen, batch_size=batch_size, steps_per_epoch=steps_per_epoch, epochs=epochs, callbacks=[checkpointer])
 
-        im = preproces_im(im)
-        _, xx, yy, zz, _ = im.shape
-        im = np.reshape(im, (xx, yy, zz))
 
-        print('Predict: ', im_path)
-        im = predict_image(im, trained_model, batch_size, patch_size, 4)
-        io_save_image(im_path.parts[-2] + '.nii', im, im_data)
+        ############################################
+        # Save history
+        h_path = history_path_save + '.hist_' + str(test) 
+        History(hist).save_history(h_path)
+
+        
+        ############################################
+        # Predict
+        trained_model = tf.keras.models.load_model(
+            str(Path(model_path_save_2)), custom_objects={'dice_coef': dice_coef, 'dice_loss:' : dice_loss})
+
+        def sorting(s): return int(re.findall(r'\d+', s)[-1])
+        for im_dir in sorted(glob(str(Path(dataset_path))), key=sorting):
+            if ('.' + str(test + 1)) not in im_dir:
+                continue
+
+            im_path = Path(im_dir) / 'patientIso.nii'
+            im, im_data = io_load_image(str(im_path))
+
+            im = preproces_im(im)
+            _, xx, yy, zz, _ = im.shape
+            im = np.reshape(im, (xx, yy, zz))
+
+            print('Predict: ', im_path)
+            im = predict_image(im, trained_model, batch_size, patch_size, 4)
+
+            p = 'predicted/cross/'
+            io_save_image(p + im_path.parts[-2] + '.nii', im, im_data)
+            break
+        
+"""
+@ Could you remind me how did you train your networks? You used low resolution images, resized all of them to 256x256x? 
+"""
